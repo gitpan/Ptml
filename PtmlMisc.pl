@@ -2,8 +2,8 @@
 
 sub TodaysDate
 {
-   my ($sec,$min,$hr,$mday,$mon,$yr) = localtime;
-   return "$yr/$mon/$mday";
+#   my ($sec,$min,$hr,$mday,$mon,$yr) = localtime;
+   return join("-",(split(" ",''.localtime))[2,1,4]);
 }
 
 # this 'Macro' encodes its parameter value for cgi usage

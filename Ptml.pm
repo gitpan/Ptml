@@ -2,318 +2,432 @@
 
 # Documentation follows at the __END__, and can be read with `perldoc Ptml'.
 
-(undef)='
+#   '$Id: Ptml.pm,v 1.6.1.2 1999/11/04 13:14:34 malcolm Exp malcolm $
+#
+#   Ptml.pm is a Perl module to merge/format/render a PTML template file.
+#   Copyright (C) 1999 Malcolm Dew-Jones.
+#
+#   This program is free software; you can redistribute it and/or modify it
+#   under the terms of the GNU General Public License as published by the
+#   Free Software Foundation; either version 2 of the License, or (at your
+#   option) any later version.
+#
+#   This program is distributed in the hope that it will be useful, but
+#   WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General
+#   Public License for more details.
+#
+#   You should have received a copy of the GNU General Public License along
+#   with this program; if not, write to the Free Software Foundation, Inc.,
+#   675 Mass Ave, Cambridge, MA 02139, USA.
+#
+#   Malcolm Dew-Jones can be reached at 73312.2317@compuserve.com or
+#   yf110@freenet.victoria.bc.ca, or via snail mail 604 Cornwall Street,
+#   Victoria B.C. Canada V8V 4L1 ';
 
-    $Id: Ptml.pm,v 1.5.1.8 1999/10/06 04:23:25 malcolm Exp malcolm $
 
-    Ptml.pm is a Perl module to merge/format/render a PTML template file.
-    Copyright (C) 1999 Malcolm Dew-Jones.
+my $user_eval;
+my $make_user_eval = sub
+{  $user_eval;
+   my $s=
+   ($Text::Ptml::verbose||$Text::Ptml::debugging)?
+   '$user_eval = sub 
+   {   my $s =eval "'.($Text::Ptml::package&&
+                       "package $Text::Ptml::package; ").
+                    '$_[0]";
+       print "${Text::Ptml::errtag}$_[0],$@\\n" if $@;
+       $s;
+   };'."\n"
+   :
+   '$user_eval = sub 
+   {   eval "'.($Text::Ptml::package&&
+                 "package $Text::Ptml::package; ").
+             '$_[0]"
+   };'."\n";
+##print $s;
+   eval $s;
+   print "${Text::Ptml::errtag}$s$@\n" if 
+       $@ && 
+       ($Text::Ptml::verbose || $Text::Ptml::debugging);
+};
 
-    This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
-    (at your option) any later version.
+my $embed;
+my $make_embedder = sub 
+{  $embed;
+   my $s=
+   '$embed = sub 
+   {   '.($Text::Ptml::package&&
+          "package $Text::Ptml::package;\n       ").
+       '# pre filter
+       '.$Text::Ptml::pre_filter.';
+       # embedding
+       '.($Text::Ptml::embedding&&'s/{\+\s*(.*?)\+}/$1/eeg').';
+       '.( ( ($Text::Ptml::verbose 
+              || $Text::Ptml::debugging) 
+            && $Text::Ptml::embedding)
+          &&'print( "${Text::Ptml::errtag}$1:$@\n",undef $@) if $@;').'
+       # post filter 
+       '.$Text::Ptml::post_filter.';
+       # printing
+       '.($Text::Ptml::printing&&'print').';
+   };'."\n";
+   eval $s;
+   print "${Text::Ptml::errtag}$s$@\n" if 
+       $@ && $Text::Ptml::verbose 
+       || $Text::Ptml::debugging;
+};
 
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+my $user_loop = sub #(clause, loop function ref )
+{  my $s= ($Text::Ptml::package&&
+           "package $Text::Ptml::package;\n").
+          "$_[0] { &{\$_[1]}};\n";
+   print "${Text::Ptml::errtag}$s" if $Text::Ptml::debugging;
+   eval $s;
+   print "${Text::Ptml::errtag}$@\n" if 
+       $@ && 
+       ($Text::Ptml::verbose || $Text::Ptml::debugging);
+};
 
-    You should have received a copy of the GNU General Public License
-    along with this program; if not, write to the Free Software
-    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+my $user_call = sub #(function ref, params_str )
+{  my $s= ($Text::Ptml::package&&
+           "package $Text::Ptml::package;\n").
+          "&{\$_[0]}($_[1]);\n";
+   print "${Text::Ptml::errtag}$s" if $Text::Ptml::debugging;
+   eval $s;
+   print "${Text::Ptml::errtag}$@\n" if 
+       $@ && 
+       ($Text::Ptml::verbose || $Text::Ptml::debugging);
+};
 
-    Malcolm Dew-Jones can be reached at 73312.2317@compuserve.com 
-    or yf110@freenet.victoria.bc.ca, or via snail mail 
-       C/O 63 Dock Street, Victoria B.C. Canada V8V 1X6
-';
+package Text::Ptml;
 
-my $_PtmlModule;
-($_PtmlModule=(caller(0))[6])=~s/[:\/\\]/::/g;
-$_PtmlModule=~s/\.[pP][mM]$//;
+$VERSION=(q{$Revision: 1.6.1.2 $}=~m/(\d+\.\d+)/)[0];
+                                                   
+$embedding   =1                                 unless defined $embedding   ;
+$printing    =1                                 unless defined $printing    ;
+$debugging   =$ENV{Ptml_DEBUGGING}              unless defined $debugging   ;
+$set_verify  =$ENV{Ptml_SET_VERIFY}             unless defined $set_verify  ;
+$verbose     =$ENV{Ptml_VERBOSE} || $set_verify unless defined $verbose     ;
+$pre_filter  =''                                unless defined $pre_filter  ;
+$post_filter =''                                unless defined $post_filter ;
+$package     =''                                unless defined $package     ;
+$comments    ='#'                               unless defined $comments    ;
+$cmdtag      ='(?:<BR>){0,1}\s*\.'              unless defined $cmdtag      ;
+$vertag      ='<BR>::'                          unless defined $vertag      ;
+$errtag      ='<BR>::'                          unless defined $errtag      ;
 
-my $_Ptmlshowing        =1;
-my $_Ptmldefining_subroutine=0;
-my $_Ptmlsubroutines    ={};
-my $_Ptmlsections       ={};
-my $_Ptmlembedding      =1;
-my $_PtmlAllowComments  =1;
-my @_Ptmltells          =();
-my @_PtmlIFs            =();
-my %_PtmlLineEdits      =();
-my $_Ptml_set_verify    =0;
-my $_Ptmlskip_loop      =0;
+&$make_user_eval();
+&$make_embedder();
 
-my $_PtmlInDent         ='(?:<BR>){0,1}\s*';
-my $_PtmlSetVerTag      ='<BR>::';
+my $Module;
+($Module=(caller(0))[6])=~s/[:\/\\]/::/g;
+$Module=~s/\.[pP][mM]$//;
 
-sub Text::Template::Ptml::scanthruPtml #(INFILE,OUTFILE,position)
+my $showing             =1;
+my $defining_subroutine =0;
+my $subroutines         ={};
+my $sections            ={};
+my @IFs                 =();
+my $skip_loop           =0;
+my $loop_depth          =0;
+my $subroutine_depth    =0;
+my $FileSym             ='Text::Ptml::TEMPLATE';
+my @FileSyms            =();
+
+$ptml_eval = sub                                                       #X#
+{                                                                      #X#
+   eval $_[0];                                                         #X#
+   print "${errtag}$@\n" if $@ && ($verbose || $debugging);            #X#
+};                                                                     #X#
+
+sub scanthruPtml #(\*INFILE,position)
 {  
-   my ($_PtmlINFILE) = shift;
-   my ($_PtmlOUTFILE) = shift || \*STDOUT;
-   my ($_Ptmlposition)= shift || 0;
+   my ($INFILE) = shift;
+   my ($position)= shift || 0;
+   seek $INFILE , $position , 0;
 
-   seek $_PtmlINFILE , $_Ptmlposition , 0;
+   print "${vertag}scanthruPtml at $position\n" if $set_verify;
 
-   print $_PtmlOUTFILE 
-   "${_PtmlSetVerTag}scanthruPtml at $_Ptmlposition\n" 
-       if $_Ptml_set_verify;
-
-   while (<$_PtmlINFILE>)
+   while (<$INFILE>)
    {   
-       print $_PtmlOUTFILE "${_PtmlSetVerTag}",$_  if $_Ptml_set_verify;
+       print "${vertag}",$_  if $set_verify;
 
-       if ((not m/^$_PtmlInDent\./io) and ($_Ptmldefining_subroutine <= 0) 
-           and $_Ptmlshowing and @_PtmlIFs <= 0)
-       {   # automatically show anything that can't be a command line 
-           # unless not showing, or defining subroutine, 
-           # or in the depths of an IF
-           goto NORMAL_OUTPUT;
+       if (not m/^${cmdtag}/io) 
+       {   # we get here if it cant possibly be a command
+           # various conditions make us skip over the text
+
+           next if (not $showing) 
+                or ($defining_subroutine > 0) 
+                or ($skip_loop > 0) 
+                or (@IFs>0 and $IFs[$#IFs] <= 0);
+
+           &$embed;
+           next;
        }
+       # we can only get here if it might be a command
+       
+       next if m/^${cmdtag}$comments/io ;    # skip comments
 
-       next if $_PtmlAllowComments and m/^$_PtmlInDent\.#/io ;    # skip comments
-
-       if (m/^$_PtmlInDent\.SECTION\s+(\S.*)/io)
+       if (m/^${cmdtag}SECTION\s+(\S.*)/io)
        {   # start of section, is it one we want?
-           my (@_Ptmlnames) = split(' ',$1);
-           print $_PtmlOUTFILE 
-               "${_PtmlSetVerTag} sections ",join(',',@_Ptmlnames),"\n"  
-               if $_Ptml_set_verify;
-           my ($_Ptmlname);
-           foreach $_Ptmlname (@_Ptmlnames)
-           {   last if $_Ptmlshowing = $_Ptmlsections->{uc $_Ptmlname};
+           my (@names) = split(' ',$1);
+           print "${errtag} sections ",join(',',@names),"\n"  
+               if $debugging;
+           foreach (@names)
+           {   last if $showing = $sections->{uc $_}||$sections->{'*'};
            }
            next;
        }elsif
-           (m/^$_PtmlInDent\.END_SECTION/io)
+           (m/^${cmdtag}END_SECTION/io)
        {   # end of section, display rest of file by default
-           $_Ptmlshowing = 1;
+           $showing = 1;
            next;
        }
-       next if not $_Ptmlshowing;
+       next if not $showing;
        
-       if (m/^$_PtmlInDent\.SUBROUTINE\s+(\S+)\s*(.*)/io)
-       {   $_Ptmldefining_subroutine++;
-           my ($_Ptmlsubroutine_name) = $1;
-           my ($_Ptmlsubroutine_params) = $2 || '@argv';
-           my ($_Ptmlsubroutine_tell) = tell $_PtmlINFILE;
-           my ($_Ptmlsubroutine) = 
-           "\$_Ptmlsubroutines{$_Ptmlsubroutine_name} = \n".
-           "sub 
-           {
-               if (\$_Ptml_set_verify ) 
-               { my \$_Ptmli=1; 
-                 foreach (\@_) { print \$_PtmlOUTFILE \"arg[\@{[\$_Ptmli++]}]=\$_\n\";}
-               }
-               local ($_Ptmlsubroutine_params) = \@_;
-               my (\$_Ptmlcaller_tell) = tell \$_PtmlINFILE;
-               Text::Template::Ptml::scanthruPtml(\$_PtmlINFILE,\$_PtmlOUTFILE,$_Ptmlsubroutine_tell);
-               seek \$_PtmlINFILE , \$_Ptmlcaller_tell , 0;
-           }\n";
-           print $_PtmlOUTFILE "${_PtmlSetVerTag}",$_Ptmlsubroutine if $_Ptml_set_verify;
-           eval "$_Ptmlsubroutine";
-           print $_PtmlOUTFILE $_,$@ if $@;
-       }elsif
-          ($_Ptmldefining_subroutine >0 and 
-           m/^$_PtmlInDent\.END_SUBROUTINE/io)
-       {   $_Ptmldefining_subroutine --;
-           next;
-       }
-       
-       next if $_Ptmldefining_subroutine > 0;
+       if (m/^${cmdtag}SUBROUTINE\s+(\S+)\s*(.*)/io)
+       {   $defining_subroutine++;
+           my ($subroutine_name) = $1;
+           my ($subroutine_params) = $2 || '@argv';
+           my ($subroutine_tell) = tell $INFILE;
 
-       if (@_PtmlIFs >0)                    # if we're in an IF (may fall thru)
-       {   if (m/^$_PtmlInDent\.ELSE/io)
-           {
-               $_PtmlIFs[$#_PtmlIFs] = -1 * $_PtmlIFs[$#_PtmlIFs]; # toggle showing/notshowing
+           my $s=
+           'my $s=sub 
+           {   if ($Text::Ptml::debugging) 
+               {   for (my $i=0 ; $i<@_ ; $i++) 
+                   {   print "${$Text::Ptml::errtag}\\@[$i]=$_[$i]\\n";
+                   }
+               }'."
+               print '${Text::Ptml::vertag}local ($subroutine_params) = \@_;'." . '"\\n"
+                   if $Text::Ptml::set_verify;
+               '.($Text::Ptml::package&&
+              "package $Text::Ptml::package; ")."
+               local ($subroutine_params) = \@_;
+               Text::Ptml::scanthruPtml(\\".*{$INFILE}.",$subroutine_tell);
+           }\n";
+           print ${errtag},$s if $debugging;
+           $subroutines{$subroutine_name} = &$user_eval($s);
+       }elsif
+          ($defining_subroutine >0 
+           and m/^${cmdtag}END_SUBROUTINE/io)
+       {   $defining_subroutine --;
+           next;
+       }
+
+       next if $defining_subroutine > 0;
+
+       if (@IFs >0)                    # if we're in an IF (may fall thru)
+       {   if (m/^${cmdtag}ELSE/io)
+           {   $IFs[$#IFs] = -1 * $IFs[$#IFs]; # toggle showing/notshowing
                next;
            }elsif
-               (m/^$_PtmlInDent\.ELSIF\s+(\S.*)/io)
-           {   my ($_Ptmlexpr) = $1;
-               next if $_PtmlIFs[$#_PtmlIFs] == 0;       # not showing 
-               next if --$_PtmlIFs[$#_PtmlIFs] == 0;     # no longer showing 
-               $_PtmlIFs[$#_PtmlIFs] = eval($_Ptmlexpr)?1:-1; # true=positive, false=negative
-               print $_PtmlOUTFILE $_,$@ if $@;
+               (m/^${cmdtag}ELSIF\s+(\S.*)/io)
+           {   next if $IFs[$#IFs] == 0;       # not showing 
+               next if --$IFs[$#IFs] == 0;     # no longer showing 
+               $IFs[$#IFs] = &$user_eval($1)?1:-1; # true=positive, false=negative
                next;
            }elsif
-               (m/^$_PtmlInDent\.END_IF/io)
-           {   pop @_PtmlIFs;
+               (m/^${cmdtag}END_IF/io)
+           {   pop @IFs;
                next;
            }elsif
-               ($_PtmlIFs[$#_PtmlIFs] <= 0)              # in IF, are we IF-not-showing?
+               ($IFs[$#IFs] <= 0)              # in IF, are we IF-not-showing?
            {   # recognize IF levels even if not displaying
-               push @_PtmlIFs , 0 if (m/^$_PtmlInDent\.IF\s+\S.*/io);
+               push @IFs , 0 if (m/^${cmdtag}IF\s+\S.*/io);
                next;
            }
            # ELSE FALL THRU
        }
 
-       if (m/^$_PtmlInDent\.IF\s+(\S.*)/io)
+       if (m/^${cmdtag}IF\s+(\S.*)/io)
        {   # IF (expression)
-           my ($_Ptmlexpr) = $1;
-           push @_PtmlIFs , eval($_Ptmlexpr)?1:-1; # true=positive, false=negative
-           print $_PtmlOUTFILE $_,$@ if $@;
+           push @IFs , &$user_eval($1)?1:-1; # true=positive, false=negative
        }elsif
-           (m/^$_PtmlInDent\.EMBEDDING/io)
-       {   # looking for embedding commands
-           $_Ptmlembedding = 1;
+           (m/^${cmdtag}END_LOOP/io )
+       {   last if $loop_depth>0;
+           print $errtag,$_,"...but not in loop.\n" if ($verbose || $debugging);
        }elsif
-           (m/^$_PtmlInDent\.END_EMBEDDING/io)
-       {   # stop looking for embedding commands
-           $_Ptmlembedding = 0;
-       }elsif
-           (m/^$_PtmlInDent\.EDIT_LINES\s+(\S.*)/io)
-       {   # various line editing keywords are available
-           my (@_Ptmlnames) = split(' ',$1);
-           my ($_Ptmlname);
-           foreach $_Ptmlname (@_Ptmlnames)
-           {   $_PtmlLineEdits{uc $_Ptmlname}=1;
+           (m/^${cmdtag}(FOREACH|WHILE|FOR)\s+(\S.*)/io)
+       {   my ($forwhile_clause) = $2;
+           my ($forwhile) = lc $1;
+
+           $loop_depth++;
+
+           my $at_least_once = 0;
+           my $told = tell $INFILE;
+
+           if ($skip_loop <=0)
+           {   my (@saveIFs) = @IFs;
+               my $scanthruloop = sub
+               {   $at_least_once = 1;
+                   @IFs = @saveIFs;  # restore state of IFs each time
+
+                   Text::Ptml::scanthruPtml($INFILE,$told);
+               };
+               &$user_loop("$forwhile $forwhile_clause",$scanthruloop );
            }
-       }elsif
-           (m/^$_PtmlInDent\.END_EDIT_LINES/io)
-       {   # stop doing any line editing
-           %_PtmlLineEdits = ();
-       }elsif
-           (m/^$_PtmlInDent\.END_LOOP/io and @_Ptmltells > 0)
-       {   # exit foreach or while loop if in a loop
-           last ;   
-       }elsif
-           (m/^$_PtmlInDent\.(FOREACH|WHILE|FOR)\s+(\S.*)/io)
-       {   my ($_Ptmlforwhile_clause) = $2;
-           my ($_Ptmlforwhile) = lc $1;
-           my (@_PtmlsaveIFs) = @_PtmlIFs;
-           my $_Ptmlat_least_once = 0;
-           push @_Ptmltells , tell $_PtmlINFILE;
-           eval
-           "   $_Ptmlforwhile $_Ptmlforwhile_clause 
-               {   \$_Ptmlat_least_once = 1;
-                   \@_PtmlIFs = \@_PtmlsaveIFs;  # restore state of IFs each time
-                   Text::Template::Ptml::scanthruPtml(\$_PtmlINFILE,\$_PtmlOUTFILE,$_Ptmltells[$#_Ptmltells]);
-               }
-           " if $_Ptmlskip_loop <=0;
-           print $_PtmlOUTFILE $_,$@ if $@;
-           if (not $_Ptmlat_least_once)
-           {   $_Ptmlskip_loop ++;
-               Text::Template::Ptml::scanthruPtml($_PtmlINFILE,$_PtmlOUTFILE,$_Ptmltells[$#_Ptmltells]);
-               $_Ptmlskip_loop --;
+           if (not $at_least_once)
+           {   $skip_loop ++;
+               scanthruPtml($INFILE, $told);
+               $skip_loop --;
            }
-           pop @_Ptmltells;
+
+           $loop_depth--;
+
        }elsif
-           (m/^$_PtmlInDent\.INCLUDE\s+(\S.*)/io)
-       {   my ($_Ptmlfilename) = $1;
-           my (@_PtmlsaveIFs) = @_PtmlIFs;
-           my (@_Ptmlsave_tells) = @_Ptmltells;
-           local *_PtmlFileSym ;
-           eval
-           "   open( _PtmlFileSym , \"\<$_Ptmlfilename\" ) or die \$!; 
-               Text::Template::Ptml::scanthruPtml(*_PtmlFileSym,\$_PtmlOUTFILE);
-               # no close in case of defined SUBS
-               # close FILE;
-           ";
-           print $_PtmlOUTFILE $_,$@ if $@;
-           @_PtmlIFs    = @_PtmlsaveIFs;
-           @_Ptmltells  = @_Ptmlsave_tells;
+           (m/^${cmdtag}INCLUDE\s+(\S.*)/io)
+       {   
+           my (@saveIFs) = @IFs;
+           my ($told) = tell $INFILE;
+           $FileSym .= '_';
+           push @FileSyms,$FileSym ;
+           my $s=
+           qq{open( $FileSym , "<$1" ) or die \$!;\n}.
+           qq{Text::Ptml::scanthruPtml(\\*$FileSym);\n};
+           # no close in case of defined SUBS
+           &$user_eval($s);
+           seek $INFILE , $told , 0;
+           @IFs    = @saveIFs;
        }elsif
-           (m/^$_PtmlInDent\.(?:END_SUBROUTINE|EXIT_SUBROUTINE)/io)
-       {   last;
+           (m/^${cmdtag}(?:END_SUBROUTINE|EXIT_SUBROUTINE)/io)
+       {   last if $subroutine_depth > 0;
+           print $errtag,$_,"...but not in subroutine.\n" if ($verbose || $debugging);
        }elsif
-           (m/^$_PtmlInDent\.EVAL\s+(.*)/io)
-       {   my ($_Ptmlstatements)= $1;
-           eval $_Ptmlstatements;
-           print $_PtmlOUTFILE $_,$@ if $@;
+           (m/^${cmdtag}EVAL\s+(.*)/io)
+       {   &$user_eval( $1);
        }elsif
-           (m/^$_PtmlInDent\.CALL\s+(\S+)(.*)/io)
-       {   my ($_Ptmlsubroutine_name) = $1;
-           my ($_Ptmlsubroutine_params) = $2;
-           my (@_PtmlsaveIFs) = @_PtmlIFs;
-           my (@_Ptmlsave_tells) = @_Ptmltells;
-##+
-print $_PtmlOUTFILE 
-   "${_PtmlSetVerTag}\&{\$_Ptmlsubroutines{$_Ptmlsubroutine_name}}($_Ptmlsubroutine_params);\n"
-   if $_Ptml_set_verify;
-##+
-           eval   "&{\$_Ptmlsubroutines{$_Ptmlsubroutine_name}}($_Ptmlsubroutine_params);";
-           print $_PtmlOUTFILE $_,$@ if $@;
-           @_PtmlIFs    = @_PtmlsaveIFs;
-           @_Ptmltells  = @_Ptmlsave_tells;
+           (m/^${cmdtag}PTML\s+(.*)/io)
+       {
+           &$ptml_eval( $1);
+           &$make_user_eval;
+           &$make_embedder;
+       }elsif
+           (m/^${cmdtag}CALL\s+(\S+)(.*)/io)
+       {   
+           my (@saveIFs) = @IFs;
+           my ($told) = tell $INFILE;
+           $subroutine_depth++;
+           &$user_call($subroutines{$1}, $2 );
+           $subroutine_depth--;
+           seek $INFILE , $told , 0;
+           @IFs    = @saveIFs;
        }else
        {   
-NORMAL_OUTPUT:
-           next if ($_Ptmlskip_loop > 0);   # inside a non-showing loop
-           # various possible edits to the lines are available
-           s/^[ \t]+\|?//o if $_PtmlLineEdits{TRIM};
-           chomp           if $_PtmlLineEdits{JOIN};
-           s/\\\n\Z//o     if $_PtmlLineEdits{JOINSOME};
-           # look for {+ $var +} 
-
-           print $_PtmlOUTFILE $_Ptml__
-               if $_Ptml_set_verify and $_Ptmlembedding and 
-                  ($_Ptml__=$_) =~ s/{\+\s*(.*?)\+}/$1/eg ;
-
-           s/{\+\s*(.*?)\+}/$1/eeg if $_Ptmlembedding;
-           print $_PtmlOUTFILE $@ if $@ and $_Ptml_set_verify;
-           print $_PtmlOUTFILE $_;
+           next if ($skip_loop > 0);   # inside a non-showing loop
+           &$embed;
        }
-   }
+   }   # end while
 }
 
-my $_Ptml_import = sub 
+my $_import = sub 
 {
    shift;
-   my $callpkg = caller(1);
+   my ($callpkg) = caller;
    @_ = qw{ PtmlPrint PtmlPrintMe PtmlMerge } if @_ == 0;
-   eval "*${callpkg}::$_=*Text::Template::Ptml::$_" while $_ = shift @_;
+   eval "*${callpkg}::$_=*Text::Ptml::$_" while $_ = shift @_;
 };
 
-*Text::Template::Ptml::import = $_Ptml_import;
-*{"${_PtmlModule}::import"} = $_Ptml_import;
+*Text::Ptml::import = $_import;
+*{"${Module}::import"} = $_import;
 
+sub ON  {1}
+sub OFF {''}
 
-package Text::Template::Ptml;
+sub PUSH
+{  my($sym,$val)=@_;
+   $sym = lc $sym; # all our variables are lowcase names
+   my $s="\npush \@$sym , \$$sym\n";
+   print $errtag,$s if $debugging;
+   eval $s;
+print "${errtag}PUSH 1: $@\n" if $@;
+   print "${errtag}\$$sym = \$val\n" if $debugging && defined $val;
+   eval "\$$sym = \$val" if defined $val;
+print "${errtag}PUSH 2: $@\n" if $@;
+}
 
-$VERSION=(q{$Revision: 1.5.1.8 $}=~m/(\d+\.\d+)/)[0];
+sub POP
+{  my($sym)=@_;
+   $sym = lc $sym; # all our variables are lowcase names
+   my $s = "\$$sym=pop(\@$sym);";
+   eval $s;
+   print "\n${errtag}$s\n" if $debugging;
+print "${errtag}POP $@\n" if $@;
+}
 
-sub set_verify { $_Ptml_set_verify = @_ || 1; }
-sub set_noverify { $_Ptml_set_verify = 0; }
-sub are_verifying { $_Ptml_set_verify; }
+sub REMOVE
+{  my($sym,$val)=@_;
+   $sym = lc $sym; # all our variables are lowcase names
+##print "\$$sym =~ s/\\Q\$val//;";
+   eval "\$$sym =~ s/\\Q\$val//;";
+print "${errtag}REMOVE: $@\n" if $@;
+}
+
+# backwards compatible sort of
+$JOINSOME = q{s/\\\\\n\\Z//o;};
+$JOIN     = 'chomp;';
+$TRIM     = q{s/^[ \\t]+\\|?//o;};
+
+my $make_sections = sub
+{  $sections={};
+   foreach (@{$_[0]}) { $sections->{uc $_}=1; }
+};
+
+my $make_options = sub                                                 #X#
+{  # $_[0] = ref to hash                                               #X#
+   my ($S,$s);                                                         #X#
+   foreach (keys %{$_[0]})                                             #X#
+   {                                                                   #X#
+       $s="\$$_=$_[0]->{$_}\n";                                        #X#
+       eval $s;                                                        #X#
+       die "Bad Ptml Option: $s,$@\n" if $@;                           #X#
+   }                                                                   #X#
+};                                                                     #X#
 
 sub PtmlMerge
-{  local *INFILE = shift;
-   local *OUTFILE = shift;
+{  my $INFILE = shift;
+   my $OUTFILE = shift;
    my $section_list = shift || [];
-   $_Ptmlshowing         = shift || 1;
-   $_Ptmlembedding       = shift || 1;
+   my $option_list = shift || {};
 
-   foreach (@{$section_list}) { $_Ptmlsections->{uc $_}=1; }
+   &$make_sections($section_list);
+   &$make_options($option_list);
+   &$make_user_eval();
+   &$make_embedder();
 
-   scanthruPtml(\*INFILE,\*OUTFILE, tell INFILE);
+   my $ofh = select($OUTFILE);
+   scanthruPtml($INFILE,tell $INFILE);
+   select($ofh);
+   close $_ while $_ = shift @FileSyms;
 }
 
 sub PtmlPrint
 {  my ($filename)   = shift;
    my $section_list = shift || [];
-   $_Ptmlshowing         = shift || 1;
-   $_Ptmlembedding       = shift || 1;
+   my $option_list = shift || {};
 
-   foreach (@{$section_list}) { $_Ptmlsections->{uc $_}=1; }
+   &$make_sections($section_list);
+   &$make_options($option_list);
+   &$make_user_eval();
+   &$make_embedder();
 
-   local *FILE;
-   open( FILE , "<$filename" ) or die $!;
-   scanthruPtml(\*FILE,\*STDOUT);
-   close FILE;
+   push @FileSyms,$FileSym ;
+   open( $FileSym , "<$filename" ) or die $!;
+   scanthruPtml(\*{$FileSym});
+   close $_ while $_ = shift @FileSyms;
 }
 
 sub PtmlPrintMe
 {
-   my $section_list      = shift || [];
-   $_Ptmlshowing         = shift || 1;
-   $_Ptmlembedding       = shift || 1;
-   my $callpkg           = caller(1);
+   my $section_list = shift || [];
+   my $option_list = shift || {};
 
-   foreach (@{$section_list}) { $_Ptmlsections->{uc $_}=1; }
+   &$make_sections($section_list);
+   &$make_options($option_list);
+   &$make_user_eval();
+   &$make_embedder();
 
-   scanthruPtml(\*{"${callpkg}::DATA"},\*STDOUT,
-                tell "${callpkg}::DATA");
+   scanthruPtml(\*{"${callpkg}::DATA"}, tell "${callpkg}::DATA");
+   close $_ while $_ = shift @FileSyms;
 }
 
 
@@ -326,47 +440,42 @@ This file Copyright (C) 1999 Malcolm Dew-Jones.
 
 =head1 NAME
 
-Ptml - Perl Template Merge Language (aka `HTML with a P')
+Ptml - Procedural Template Merge Language
 
 =head1 SYNOPSIS
 
-   Declaring the functions.
-   
-use Text::Template::Ptml;     OR
+    Loading the module
 
-use Ptml;      (...depending on where Ptml.pm is installed.)
+C<use Text::Ptml;     OR>
 
+C<use Ptml;>  (Depending on where it is installed.)
 
-   Merging data into a template.
+    Merging data
 
-C<PtmlPrint( "templatefilename" [,\@section_names ] );>
+C<PtmlPrint("filename", \@sections, \%options);>
 
-C<PtmlPrintMe( [ \@section_names ] );>
+C<PtmlPrintMe(\@sections, \%options);>
 
-C<PtmlMerge( *TEMPLATE , *OUTPUT [,\@section_names ] );>
-
-
-   Debugging a template.
-
-C<Text::Template::Ptml::set_verify();>
-
-C<Text::Template::Ptml::set_noverify();>
-
-C<Text::Template::Ptml::are_verifying();>
+C<PtmlMerge(\*TEMPLATE, \*OUTPUT, \@sections, \%options);>
 
 
 =head1 DESCRIPTION
 
-PTML is a simple but full featured "language" used to merge Perl data
-into templates.  Ptml.pm is the module that implements the merge.  
+PTML is a "language" used to control the merging of Perl data into template
+files.  PTML statements are included as part of the text of a template.
+
+I<Ptml.pm> is the module that contains the procedures used to perform the merge.
 
 A template is some text which is stored in one or more files, or embedded in
 the __DATA__ segment of your Perl program.  The template must be stored in a
-file (as opposed, perhaps, to a pipe or a Perl variable).
+file, as opposed, perhaps, to a Perl variable.  (Actually a pipe may also be 
+used but with reduced merge functionality - commands requiring 
+backtracting, such as loops, will not work.)
 
 The template includes text that is displayed verbatim, macros that are
 replaced by values during the merge, and PTML language statements that
 control the merge process.
+Various options can be used to modify or enhance the merge process.
 
 PTML language statements look vaguely similar to RUNOFF commands, and macros
 are snippets of Perl code bracketed on a single line by C<{+> and C<+}>.
@@ -384,126 +493,145 @@ normally cause any problems.)
 It is convenient to provide well structured data via one or more aptly named
 hash arrays, but this is not required.
 
-The merge procedure runs within the package of the I<first> module that
-I<use>'s Ptml.  If Ptml is C<use>'d near the top of a typical Perl program
-then the merge takes place in the C<main::> package.
+By default the merge procedure runs within the package of the I<first>
+module that I<use>'s Ptml.  If Ptml is C<use>'d near the top of a typical
+Perl program then the merge takes place in the C<main::> package.  The
+I<package> option can over ride this.
+
+=head1 SIMPLE EXAMPLE
+
+The following text is a short, introductory example to what a simple
+template file might look like, if I<cat>'d or I<TYPE>'d to the screen.
+
+-----------------------------------------------------------
+Z<>I<.SECTION NEW_USER>
+
+Welcome to our BBS system.  There are
+I<{+$number_of_accounts+}> other users that have accounts
+here.  If you would like to join then select the NEW USER
+option when it appears below.
+
+Z<>I<.SECTION RETURNING_USER>
+
+Welcome back, I<{+$the_user+}>, to our BBS system.
+
+Z<>I<.END_SECTION>
+
+Right now there are I<{+$number_of_users+}> other users 
+logged on, and you can chat with them if you wish.
+
+ They are...
+
+Z<>I<.FOREACH $user (@current_users)>
+
+I<{+$user+}>.  I<{+he_she_of($user)+}> likes I<{+likes_of($user)+}>, 
+but hates I<{+dislikes_of($user)+}>.
+
+Z<>I<.END_LOOP>
+
+ Press Enter to continue...
+-----------------------------------------------------------
+
+The above template might be displayed by code such as the following...
+
+   #!/perl
+   use BBS_utils;
+   use Text::Ptml;
+   
+   @current_users=split(/\s+.*\n/, `who` );
+   $the_user=$ENV{LOGNAME};
+   
+   if ($the_user eq 'guest')
+   {   PtmlPrint("BBS_menu.ptml",[NEW_USER]);
+   }else
+   {   PtmlPrint("BBS_menu.ptml",[RETURNING_USER]);
+   }
+
 
 =over 5
 
-=head1 MODULE FUNCTIONS
+=head1 MERGE FUNCTIONS
 
-=item PtmlPrint( "TemplateFilename" [,\@SECTION_NAMES ] )
+=item PtmlPrint( "Filename" [,\@section_names [,\%options]] )
 
-Merge a file named I<TemplateFilename>.  I<SECTION_NAMES> is a reference to an
-array of strings, each of which is the name of a section to be shown.
-(Sections, as discussed below, are indicated with the .SECTION statement.)
+This function reads the template from a file, and prints the output to the
+currently I<select>'ed file handle (STDOUT by default).
+
+I<Filename> is the name of the file containing the template.
+
+I<section_names> is optional, and is a reference to an array of strings,
+each of which is the name of a section to be shown. (Sections, as discussed
+below, are indicated with the .SECTION statement.)
+
+If no section names are specified then no named section of the template will
+be merged.  As a special case, the section name I<*> will select all
+sections.
+
+I<options> is optional, and is a reference to a hash.  Each key is an option
+name, and its value is the desired starting value for that option.  Options
+are discussed under the 'OPTIONS' heading.  Some options can only be
+specified for the first merge, and remain fixed for any subsequent merges
+unless the Ptml.pm module is reloaded via the Perl I<do> statement.
 
 
 =item PtmlPrintMe( [ \@SECTION_NAMES ] )
 
 This function reads the template from the __DATA__ section of a Perl
-program.  To be specific, its reads the __DATA__ section of the code
-that invokes PtmlPrintMe.
+program, and prints the output to the
+currently I<select>'ed file handle (STDOUT by default).
 
-I<SECTION_NAMES> is as documented above.
+To be specific, its reads the DATA handle in the package of
+the code that invokes PtmlPrintMe.
 
-=item PtmlMerge( *TEMPLATE , *OUTPUT [,\@SECTION_NAMES ] )
+I<section_names> and I<options> are discussed above.
 
-I<TEMPLATE> is the file handle of an open template file.
+=item PtmlMerge( \*TEMPLATE , \*OUTPUT [,\@SECTION_NAMES ] )
+
+This function reads the template from a file handle, and prints the result
+to the specified file handle.
+
+I<TEMPLATE> is the file handle of an open file (or pipe) that contains the
+template.
+
 I<OUTPUT> is the handle to which the data is `print'ed.  It can be any type of
-handle that can be used by `print', such as a pipe to sendmail (hint hint).
+handle that can be used by `print', E.g. a pipe to I<sendmail>.
 
-I<SECTION_NAMES> is as documented above.
-
-=item Text::Template::Ptml::set_verify()
-
-=item Text::Template::Ptml::set_noverify()
-
-=item Text::Template::Ptml::are_verifying()
-
-Turn the set verify mode on or off, or test whether it's on or off.
+I<section_names> and I<options> are discussed above.
 
 =back
 
-=head1 QUICK EXAMPLE
-
-The following text is a short, introductory example to what a simple
-template file might look like, if cat'd or TYPE'd to the screen.
-
-   .SECTION NEW_USER
-   Welcome to our BBS system.  There are {+$number_of_accounts+} 
-   other users that have accounts here.  If you would like to join 
-   then select the NEW USER option when it appears below.
-
-   .SECTION RETURNING_USER
-   Welcome back, {+$the_user+}, to our BBS system.
-
-   .END_SECTION
-
-   Right now there are {+$number_of_users+} other users logged on,
-   and you can chat with them if you wish.
-   
-   They are...
-   .FOREACH $user (@current_users)
-       {+$user+}.  {+he_she_of($user)+} likes {+likes_of($user)+}, but 
-                   hates {+dislikes_of($user)+}.
-   .END_LOOP
-   Press Enter to continue...
-
-
-=head1 PTML MACROS
-
-The text of a template can contain snippets of text that should be replaced
-when the template is merged.  These are called I<macros>.
-
-Each macro is bracketed by I<{+> and I<+}> .  This bracketing was chosen
-because it will rarely clash with any text or macro contents.  The entire
-macro must fit on a single line of the template.  
-
-The contents of each macro is actually a snippet of Perl code that should
-return the value to be embedded.  The simplest macro is a scalar string
-variable.  However any amount of Perl code that will fit on a single line
-can be used.
-
-I find it useful to use Perl subs as macros to perform common formatting
-tasks.  The file F<PtmlMisc.pl> contains various subs which I have found
-useful on a variety of projects.  They are useful in their own
-right, and also illustrate certain useful techniques.
-
-The following 3 lines contain some simple examples of macros...
-
-   1. The Perl variable $something has the value {+$something+}
-   
-   2. The current time as returned by localtime() is {+localtime()+}
-
-   3. More complex Perl code can be used if desired... such as the 
-      following code : {+$x==5?"X was 5":"X was not five"+}
-
-
 =head1 PTML LANGUAGE STATEMENTS
 
-=over 12
+=over 5
 
 =item .SECTION name [name ...]
 
 Indicates the start of a named section of the template.  A section can have
 more than one name, in which case it will be formatted whenever any of the
-indicated sections are being merged.  
+indicated sections are being merged.  A name can be assigned to more than
+one section.  In this manner a single section name can be used to select
+more than one section.  (The merge functions have additional ways of
+selecting multiple sections.)
 
 Portions of the template that lie outside of any .SECTION or .END_SECTION
 are always formatted.  Each new .SECTION ends any previous .SECTION.
+
 
 =item .END_SECTION
 
 Indicates the end of any previous .SECTION.
 
-=item .SUBROUTINE SubroutineName  [arg1 , arg2 , ...]
+=item .SUBROUTINE name [arg1 , arg2 , ...]
 
 Marks the beginning of a template subroutine.  The template text upto the
 corresponding .END_SUBROUTINE is not printed when first encountered, but
-instead is saved for later and formatted when a I<.CALL SubName> statement is
+instead is saved for later and formatted when a I<.CALL name> statement is
 encountered with this subroutine name.  The arguments are made available as
 perl variables for use as Ptml macros within the text of the subroutine.
+
+If no args are specified in the subroutine definition then an array called
+I<@args> is created to hold any parametres passed when the subroutine is
+invoked.
 
 Subroutine definitions may be nested, though there is no particular use
 for this fact in this version of Ptml.
@@ -516,13 +644,14 @@ Any currently formatting subroutine is exited.
 
 This statement marks the end of the defintion of a subroutine.
 
-=item .CALL SubroutineName parametre_expr
+=item .CALL name parametre_expr
 
 The merge process I<calls> the indicated subroutine.  This actually means
 that the merge temporarily takes place starting at the text immediately
 following the corresponding .SUBROUTINE statement.  The I<parametre_expr>
 becomes the list of arguments in a Perl function call, so its syntax is
-anything that Perl accepts.
+anything that Perl accepts.  The debugging option will display the generated
+perl code which may be useful when first using parametres in subroutines.
 
 =item .IF expr
 
@@ -546,66 +675,97 @@ nesting, so that statements such as the following are possible...
 
 though I'm not suggesting you will want to use this capability very often.
 
-=item .EMBEDDING
 
-Turns on the embedding of macros.  Macro embedding is turned on by default,
-but can be turned off with the .END_EMBEDING statement.
+=item .EVAL expr
 
-=item .END_EMBEDDING
+Passes I<expr> to the Perl I<eval> command.  It is the literal text of
+I<expr> that is eval'd.  Variables embedded within the expression are not
+expanded unless the expression includes code to force that expansion.
 
-Turns off the embedding of macros.  Macro embedding is turned on by default,
-but can be turned off with the .END_EMBEDING statement.
+=item .PTML expr
 
-=item        .EDIT_LINES [ TRIM | JOIN | JOINSOME ]
+A Ptml specific eval used to set PTML options.  The .PTML statement
+evaluates I<expr> in the Ptml package space, and also forces various
+internal items to be recompiled.
 
-C<EDIT_LINES> provides several simple options to edit each line of template
-input before it is used in the merge.
+Various items are provided for use in the .PTML statement.  They assist in
+setting the various options. (PTML options are listed and discussed in
+another section.)
 
-I<TRIM> removes any white space from the beginning of each line, plus if
-the line begins with I<|> then removes that character as well. This is useful
-to allow indenting of the text in a template to show the logic of the
-template even though the final document is not to have the indenting.  It
-also provides a technique to escape the initial . of Ptml commands, thus
-allowing Ptml to generate Ptml.
+=over 8
 
-I<JOIN> removes the trailing LF from each template line
-before it is displayed, (and before macros on that line
-are expanded).  This `joins' the output lines into a
-single line. The input is still read one line at a time.
+=item .PTML PUSH(option_name [,new_value] )
+
+=item .PTML POP(option_name)
+
+The current value of any option can be saved and restored using I<PUSH> and
+I<POP>.  These functions accept the name of the option to save or restore.
+
+   E.g.    .PTML PUSH(pre_filter)    #Note: no $
+
+When an option is pushed then it retains its current value, unless a new
+value is also specified.  (The new value may be modified later.)
+
+=item .PTML REMOVE(options_name,string)
+
+This may assist in manipulating the filters.  It is a wrapper around
+I<s/your-string//;>, but is less typo prone.  
+
+   E.g.    .PTML $pre_filter.=$TRIM
+           .PTML REMOVE(pre_filter,$TRIM)
+
+=item predefined filter: $TRIM
+
+=item predefined filter: $JOIN
+
+=item predefined filter: $JOINSOME
+
+Previous version of Ptml provided an I<.EDIT_LINES> statement.  It accepted
+several options to modify the input lines of the template.  These three
+variables, which are accessible within the .PTML statement, reproduce that
+functionality when used with the I<pre_filter> option.
+
+   E.g.    .PTML $pre_filter=$TRIM
+
+I<$TRIM> removes any white space from the beginning of each line, plus if
+the line begins with I<|> then it removes that character as well. 
+
+I<$JOIN> removes the trailing I<\n> from each template line.
+This `joins' the output lines into a
+single line.
 
 Note: You may wish to include one extra blank line I<after> the
 joined lines to force a new line before further output.
 
-   .EDIT_LINES JOIN
+   .PTML $pre_filter=$JOIN
    These lines 
    Will be joined together.
-   .END_EDIT_LINES
-   --This line should be left blank!
+   .PTML undef $pre_filter
 
-I<JOINSOME> is simlar to I<JOIN>, but is only applied to lines with
-a I<\> at the end.  The slash is removed as well as the LF.
+   Note: the previous blank line forces a new line
 
+I<$JOINSOME> removes the trailing I<\n> from lines that end in 
+a I<\>.  The slash is removed as well as the <\n>.
 
+   .PTML $pre_filter=$JOINSOME
+   These lines \
+   Will be joined together.
+   Ane so will \
+   These two lines.
+   .PTML undef $pre_filter
 
-=item .END_EDIT_LINES 
+=back
 
-Turns off any .EDIT_LINES options previously set.  There is no way in this
-version of Ptml to nest the use of EDIT_LINES options.
-
-=item .EVAL expr
-
-Passes I<expr> to the Perl C<eval> command.  It is the literal text of
-I<expr> that is eval'd.  Variables embedded within the expression are not
-expanded unless the expression includes code to force that expansion.
+=over 5
 
 =item .INCLUDE filename
 
-Merges the indicated file.  The filename can include Perl variables.  E.g.
-statements such as the following are possible
+Merges the indicated file.  The filename can include Perl variables, so 
+statements such as the following are possible...
 
-   .INCLUDE $TemplateDir/Header.html
+   E.g.    .INCLUDE $TemplateDir/Header.html
 
-where $TemplateDir would be a Perl variable containing a directory name.
+(where $TemplateDir would be a Perl variable containing a directory name).
 
 =item .FOREACH expr
 
@@ -636,6 +796,210 @@ bug.  The bug does not alter the text displayed by the merge, but care must
 be taken if an IF statement inside a loop has side effects and depends on
 the loop's logic.  Examples and solutions are shown in the BUGS section.
 
+=back
+
+=head1 PTML OPTIONS
+
+A variety of options are available to control aspects of the merge.  Each
+option corresponds to a simple Perl variable in the Text::Ptml
+package.  Most options can be modified at any time, but a few, as noted
+below, can only be set before any data is merged - once any data has been
+merged then these options can not be modified unless the I<Ptml.pm> file is
+reloaded using the Perl I<do> statement.
+
+Options can be set as Perl variables.
+
+   E.g.  $Text::Ptml::debugging=1;
+
+Options can be set by name in the I<\%options> parametre of each merge
+function.  In this case the values I<ON> and I<OFF> can be used for
+readability, as well as normal values (e.g. I<1>, I<0>, I<"JOIN">, etc).
+
+   E.g.  PtmlPrintMe(\@sections, {debugging=>ON} );
+
+Options can be set as perl variables within the .PTML language statement.  The
+values ON and OFF may be used.  The package name does not need to be included.
+
+   E.g.  .PTML $debugging=ON
+
+An option may be the target of the I<PUSH>, I<POP>, and I<REMOVE> functions,
+which are available from within the .PTML language statement.  In this case
+the option's name only (not its value) is used - i.e. leave of the I<$>.
+
+   E.g.  .PTML PUSH(debugging)
+
+Three debugging options, I<debugging>, I<verbose>, and I<set_verify>, can
+also be set from the command line by assigning an environment variable
+before running the perl script.
+
+   E.g.  bash shell
+
+         $ Ptml_DEBUGGING=1
+         $ export Ptml_DEBUGGING
+
+   E.g.  DOS
+
+         C:> SET Ptml_DEBUGGING=1
+
+
+Note: each option example shown below illustrates just one of the several
+possible techniques for assigning values to the option.  Different
+techniques are shown for completeness, not because the technique shown is
+specific to that option.
+
+
+=over 5
+
+=item embedding
+
+Controls whether macros are expanded or not.  Long portions of a template
+that do not contain macros will merge somewhat faster if embedding is turned
+off, and this is one way to display macro text as-is.
+
+   E.g.    .PTML $embedding=ON
+
+=item printing
+
+Controls whether the merged template is printed.  This can be useful for
+merging a template in several passes (which is useful if a template contains
+embedded data that is used before it is defined) or to view certain
+debugging output.
+
+   E.g.    PtmlPrintMe(\@sections, {printing=>OFF} );
+
+=item debugging
+
+Various low level details of the merge can be displayed.  This is most
+useful to ensure that any Perl code specified by the template is being
+interpreted correctly.
+
+   E.g.    $Text::Ptml::debugging=1;
+
+=item set_verify
+
+The source of the template can be displayed as it is being merged.
+
+   E.g.    $ Ptml_SET_VERIFY=1
+           $ export Ptml_SET_VERIFY
+           $ perl my_merge_script
+
+=item verbose
+
+Perl eval errors are reported.
+
+   E.g.    .PTML $verbose=1;
+
+=item pre_filter
+
+The pre_filter is Perl code that runs just before macros are embedded.  It
+can be any perl code you wish, though a simple subroutine name is the
+easiest to specify.  The pre_filter is defined within the Ptml package
+space, but runs in the callers package space.  Several Ptml variables are
+provided that assist in backwards compatibility with earlier versions of
+Ptml.
+
+ E.g. user defined sub as a prefilter - remove certain lines
+   
+   # in caller's package
+   sub NO_SECRETS { $_ = "*secret line removed*\n" if m/secret/o;}
+
+   .# in the template
+   .PTML pre_filter=NO_SECRETS 
+ OR
+   .PTML pre_filter='NO_SECRETS'
+
+ E.g. hard coded filter - double spacing
+   
+   .PTML pre_filter='$_.="\\n"'
+
+ E.g. using a predefined Ptml filter
+   
+   .PTML pre_filter=$TRIM
+
+=item post_filter
+
+The post_filter is set in the same manner as the pre_filter, but it runs
+after any macros are embedded but before each line is printed.
+
+ E.g.    
+
+   sub count_characters {$count+=length($_)}
+   $count =0;
+   PtmlPrint("MyFile",[],{post_filter=>'count_chacters'});
+   print "$count characters were output";
+           
+=item package
+
+The package in which macros, expressions, and .EVAL's are evaluated.
+
+By default the package used is the package current at the time of the
+initial load of Ptml.pm.
+
+   E.g.    PtmlPrintMe(\@sections,{package=>other_pkg});
+
+=item comments
+
+The comments option can only be set before any data is merged.  
+
+The default comment statement is the single character I<#>, but
+this can be replaced with any regular expression you wish.  If you match any
+PTML language statements then you disable that statement.  Commented lines
+are not seen by the filters, and are not output during the merge.
+
+   E.g.    $Text::Ptml::comments='REMARK|COMMENT|#';
+
+=item cmdtag
+
+The cmdtag option can only be set before any data is merged.  It is the
+regular expression that introduces every PTML command on a line.
+
+The default command tag skips over a single optional HTML break tag <BR>
+followed by any amount of white space and a trailing dot.
+
+The cmdtag can be replaced with any regular expression you wish.
+
+   E.g.    $Text::Ptml::cmdtag='\\\s*';
+
+=item vertag
+
+vertag is a string that is displayed at the start of each line echoed
+because set_verify is turned on.
+
+=item errtag
+
+errtag is a string that is displayed at the start of each line echoed
+as an error message because verbose or debugging is turned on.
+
+=back
+
+=head1 PTML MACROS
+
+The text of a template can contain snippets of text that should be replaced
+when the template is merged.  These are called I<macros>.
+
+Each macro is bracketed by I<{+> and I<+}> .  This bracketing was chosen
+because it will rarely clash with any text or macro contents.  The entire
+macro must fit on a single line of the template.  
+
+The contents of each macro is actually a snippet of Perl code that should
+return the value to be embedded.  The simplest macro is a scalar string
+variable.  However any amount of Perl code that will fit on a single line
+can be used.
+
+I find it useful to use Perl subs as macros to perform common formatting
+tasks.  The file F<PtmlMisc.pl> contains various subs which I have found
+useful on a variety of projects.  They are useful in their own
+right, and also illustrate certain useful techniques.
+
+The following 3 lines contain some simple examples of macros...
+
+   1. The Perl variable $something has the value {+$something+}
+   
+   2. The current time as returned by localtime() is {+localtime()+}
+
+   3. More complex Perl code can be used if desired... such as the 
+      following code : {+$x==5?"X was 5":"X was not five"+}
+
 
 =back
 
@@ -656,10 +1020,10 @@ the install directory.
    E.g. if Ptml.pm is installed in the Text/Template directory of 
         the Perl installation
         
-      use Text::Template::Ptml;
+      use Text::Ptml;
 
 However, no matter where Ptml.pm is installed, it always uses the
-Text::Template::Ptml name space.  
+Text::Ptml name space.  
 
 By default, all three merge subroutines are exported into your name space.
 Alternatively, you can list which subs should be exported, as discussed in
@@ -667,7 +1031,7 @@ the standard Perl documentation, except that the numerous capabilities of
 the standard Exporter module are not available.  Ptml.pm allows you
 just to list the names of the subs to be imported.
 
-   E.g. use Ptml qw{PtmlPrint set_verify are_verifying};
+   E.g. use Ptml qw{PtmlPrint};
 
    E.g. to prevent importing any of the Ptml routines
       
@@ -678,19 +1042,19 @@ just to list the names of the subs to be imported.
 =head1 SECURITY
 
 The PTML file is as great a security risk as the Perl code which merges it.
-While I do not believe that user data being merged _into_ a template poses an
-_inherent_ security risk, it is certainly possible to write templates where
+While I do not believe that user data being merged I<into> a template poses an
+I<inherent> security risk, it is certainly possible to write templates where
 that would be the case.  (Examples shown below.)
 
 ONE RULE IS ABSOLUTE - do not allow any untrusted data to be used as the
-_source_ of the _template_.
+source of the template.
 
 Data is merged using evals, but the eval's actually act upon the literal
 text of the Perl variable names that your program uses as `macros', not on
 the data contained within the macros.
 
 The following template snippet shows some dos and don'ts.  You can run this
-snippet using `doPtml' if you wish by extracting the lines into a file.
+snippet using I<doPtml> if you wish by extracting the lines into a file.
 
 =over 5 
 

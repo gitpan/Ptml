@@ -1,5 +1,5 @@
 
-What is PTML/Ptml?
+== What is PTML/Ptml?
 
 PTML is a simple but non-trivial language used to build templates into which
 data can be merged.
@@ -15,7 +15,7 @@ script calls one of the Ptml functions to perform the merge, and the result
 is output to a file handle (typically but not necessarily STDOUT).
 
 
-Features of PTML
+== Features of PTML
 
 PTML is _not_ an extension to HTML.  In my experience it is difficult to
 prepare HTML templates using a template language that is an extension to
@@ -23,13 +23,11 @@ HTML because a standard browser "hides" the template logic.  In contrast, an
 unmerged PTML file viewed with a standard browser typically gives a good
 representation of what the final merged HTML document will look like.
 
-Ptml is small and self contained, and requires no setups or installations
-within Perl or the computers operating environment.  Simply copy the Ptml.pm
-file to a suitable directory and it's ready to go.  
+Ptml is self contained, and requires no setups or installations within Perl
+or the computers operating environment.  Simply copy the Ptml.pm file to a
+suitable directory and it's ready to go.
 
-Complex templates can be debugged with the set_verify() function, which
-prints every line of a template as it is merged along with macro expansion
-phases.
+Several options assist in debugging complex templates.
 
 Ptml can gather all visual elements into a single file which is separate
 from the code BUT the visual elements are not _isolated_ from the code. Ptml
@@ -43,22 +41,19 @@ incorporated right into the Perl source code itself (useful for very small
 projects).
 
 
-Installing Ptml.
+== Installing Ptml.
 
-Copy Ptml.pm into a suitable directory.
+Copy Ptml.pm into a suitable directory.  For system wide installation I
+suggest the Text sub-directory of the Perl installation.  In this case Ptml
+will be accessed like this
 
-For system wide installation I suggest the Text/Template directory (which
-you must probably create).
-
-In this case Ptml will be accessed like this
-
-   use Text::Template::Ptml;
+   use Text::Ptml;
 
 Ptml can be installed on a project by project basis instead if you wish.  If
 Ptml.pm is stored in the same directory as the rest of your Perl application
 then you would access it with code like
 
-   use Ptml;
+   use Ptml;   # Assuming . is in the perl LIB path
 
 If it were installed in a subdirectory such as Utils it would be accessed
 with code like
@@ -66,11 +61,51 @@ with code like
    use Utils::Ptml;
 
 
-Examples of merging
+== Example of merging
 
-   See `example.ptml' for examples of all the PTML features, especially the
-   more complex ones.
+The following text is a short, introductory example to what a simple
+template file might look like, if cat'd or TYPE'd to the screen.
 
-   The doPtml utility can be used to examine the examples template, or other
-   files if desired.
+       -----------------------------------------------------------
+       .SECTION NEW_USER
 
+       Welcome to our BBS system.  There are
+       {+$number_of_accounts+} other users that have accounts
+       here.  If you would like to join then select the NEW USER
+       option when it appears below.
+
+       .SECTION RETURNING_USER
+
+       Welcome back, {+$the_user+}, to our BBS system.
+
+       .END_SECTION
+
+       Right now there are {+$number_of_users+} other users 
+       logged on, and you can chat with them if you wish.
+
+        They are...
+
+       .FOREACH $user (@current_users)
+
+       {+$user+}.  {+he_she_of($user)+} likes {+likes_of($user)+}, 
+       but hates {+dislikes_of($user)+}.
+
+       .END_LOOP
+
+        Press Enter to continue...
+       -----------------------------------------------------------
+
+The above template might be displayed by code such as the following...
+
+       #!/perl
+       use BBS_utils;
+       use Text::Ptml;
+   
+       @current_users=split(/\s+.*\n/, `who` );
+       $the_user=$ENV{LOGNAME};
+   
+       if ($the_user eq 'guest')
+       {   PtmlPrint("BBS_menu.ptml",[NEW_USER]);
+       }else
+       {   PtmlPrint("BBS_menu.ptml",[RETURNING_USER]);
+       }

@@ -4,27 +4,28 @@ die "
    This is a simple test driver for Ptml.pm.  It displays a 
    Ptml document with no additional logic.
 
-   Usage: doPtml [-v] template-file-name [section names(s)]
+   Usage: doPtml [-vd] template-file-name [section names(s)]
    Where: -v                 : turn on document debug mode
+          -d                 : turn on debugging
           template-file-name : your template file
           sections name(s)   : select which `.SECTION name's
                                to display. space delimited list 
 " if @ARGV < 1;                             
 
 # we don't know where Ptml is installed, so try both
-# use Ptml qw{PtmlPrint set_verify};
-# use Text::Template::Ptml qw{PtmlPrint set_verify};
 
 BEGIN{ 
+   eval "require ::Ptml";  
    eval "require Ptml";  
-   eval "require Text::Template::Ptml";
-   import Text::Template::Ptml qw{PtmlPrint set_verify};
+   eval "require Text::Ptml";
+   import Text::Ptml qw{PtmlPrint};
 }
 
 
-if ($ARGV[0] =~ m/^-v/oi)
-{  shift;
-   set_verify();
+if ($ARGV[0] =~ m/^-/oi)
+{  $options=shift;
+   %options=(set_verify=>ON)    if $options =~ m/v/;
+   $options{debugging}=1        if $options =~ m/d/;
 }
 
-PtmlPrint( shift , \@ARGV);
+PtmlPrint( shift , \@ARGV, \%options);

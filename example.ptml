@@ -11,9 +11,10 @@ the merge results of each feature.
         doPtml example.ptml  for          
         doPtml example.ptml  foreach      
         doPtml example.ptml  while        
+        doPtml example.ptml  loops
         doPtml example.ptml  if           
         doPtml example.ptml  embedding    
-        doPtml example.ptml  edit_lines   
+        doPtml example.ptml  pre_filter
         doPtml example.ptml  eval         
         doPtml example.ptml  include 
         doPtml example.ptml  todaysdate   
@@ -109,7 +110,7 @@ And the argv example (which also shows accessing Perl data).
 And Thus ends the subroutine examples.
 --------------------------------------------------------------
 
-.SECTION for          all
+.SECTION for          all loops
 --------------------------------------------------------------
 Example of FOR loops (nested no less!)
 --------------------------------------------------------------
@@ -122,7 +123,7 @@ Example of FOR loops (nested no less!)
 End of example of FOR loops
 --------------------------------------------------------------
 
-.SECTION foreach      all
+.SECTION foreach      all loops
 --------------------------------------------------------------
 Example of FOREACH loop
 --------------------------------------------------------------
@@ -133,7 +134,7 @@ Example of FOREACH loop
 End of example of FOREACH loop
 --------------------------------------------------------------
 
-.SECTION while        all
+.SECTION while        all loops
 --------------------------------------------------------------
 This section illustrates the while loop.
 We shall print out the contents of the %ENV hash.
@@ -145,7 +146,7 @@ We shall print out the contents of the %ENV hash.
 End of while loop example.
 --------------------------------------------------------------
 
-.SECTION if           all
+.SECTION if           all 
 --------------------------------------------------------------
 This section illustrates IF ELSE ELSIF END_IF (It also uses FOREACH)
 --------------------------------------------------------------
@@ -169,55 +170,60 @@ End of IF based example
 Embedding of macros is ON by default.  This example temporarily
 turns OFF the use of macros.
 --------------------------------------------------------------
-.END_EMBEDDING
+.PTML $embedding=OFF
 
 This line has the macro {+TodaysDate()+}, but it won't be embedded 
-due to the .END_EMBEDDING command.
+due to the .PTML end_embedding option.
 
-.EMBEDDING
+.PTML $embedding=ON
 Now that embedding is turned on again, the same macro will look 
 like this: {+TodaysDate()+}
 --------------------------------------------------------------
 End of EMBEDDING example
 --------------------------------------------------------------
 
-.SECTION edit_lines   all
+.SECTION pre_filter all
 --------------------------------------------------------------
-This section shows the use of EDIT_LINES to modify the input
-lines before any macros are expanded.
+This section shows the use of the pre_filter options to modify 
+the input lines before any macros are expanded.
 --------------------------------------------------------------
 First show TRIM.
 
-.EDIT_LINES    TRIM
+.PTML $pre_filter=$TRIM
        This line will not be indented when displayed
        |   but this further indent will be kept.
 
-Then add JOIN.  JOIN removes the trailing LF from the input.
+Then temporarily add JOIN.  JOIN removes the trailing LF from the input.
 You will need one blank line _after_ a JOIN to start a new line.
-.EDIT_LINES    JOIN
+.PTML PUSH(pre_filter,$pre_filter.$JOIN)
    At this stage TRIM is still active, 
    and because of JOIN these lines will also 
    be joined into one.
-.END_EDIT_LINES
+.PTML POP(pre_filter)
 
+       The pre_filter has been restored, 
+       so JOIN is no longer active,
+       Only TRIM.
 
 Now show JOIN by itself.
-.EDIT_LINES    JOIN 
+.PTML $pre_filter=$JOIN
    Now only the JOIN is active, so 
    they will be joined but with white space.
-.END_EDIT_LINES
+   Now we remove the JOIN, while leaving.  We use
+   REMOVE to do this simply as an example.
+.PTML REMOVE(pre_filter,$JOIN)
 
 
 And finally JOINSOME by itself.
-.EDIT_LINES    JOINSOME
+.PTML $pre_filter=$JOINSOME
 Some of these lines \
 will be on the same line.
 And some of the lines \
 will not be on the same line.
-.END_EDIT_LINES   
+.PTML undef $pre_filter
 
 --------------------------------------------------------------
-End of EDIT_LINES examples
+End of pre_filter examples
 --------------------------------------------------------------
 
 .SECTION eval         all
@@ -253,7 +259,7 @@ template, but you can if you wish!
    Non-merging include of file.
    ----------------------------
 
-.EVAL sub ShowFile { my ($f)=@_; open(F,"<$f"); print while(<F>) ; close(F);}
+.EVAL sub ShowFile { open(F,$_[0]) or die "$_[0]:$!\n"; print <F>; close(F);}
 .EVAL ShowFile("$ourDir/doPtml")
 
 --------------------------------------------------------------

@@ -17,6 +17,7 @@ define a few examples structures to make the examples work.
                    "Last item (number four)" );
 
 chop($ourDir = `pwd`);
+$ourDir = '.' if not $ourDir;
 
 # return TRUE to our caller
 1;
