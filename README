@@ -1,458 +1,76 @@
 
 What is PTML/Ptml?
 
-PTML is a nice acronym.  PTML could mean `Perl Template Merge Language', or
-`Perl TeMplate Language' or `Perl Template Markup Language', - or what the
-heck, maybe it's just that the initials are sort of like HTML but with a P.
-
 PTML is a simple but non-trivial language used to build templates into which
 data can be merged.
 
-Ptml.pm is the PERL module that understands PTML.
+Ptml.pm is the Perl module that understands PTML.
 
 The Ptml package includes Ptml.pm and some examples and additional
 documentation.
 
-To use PTML you write a template file containing PTML statements and a PERL
+To use PTML you write a template file containing PTML statements and a Perl
 script that defines the data you wish to merge into the template.  The
 script calls one of the Ptml functions to perform the merge, and the result
 is output to a file handle (typically but not necessarily STDOUT).
 
 
-Installing Ptml.
+Features of PTML
 
-Copy Ptml.pm to a convenient location, such as the directory containing the
-script that will perform PTML merges.
-
-I think the Text:: module area of the PERL installation would ultimately
-make a sensible home for Ptml.pm, but for now I recommend that you install
-Ptml.pm on a per project basis.  This is because the PTML language has a few
-keywords and other items that I think should change, but I haven't decided
-exactly how yet.
-
-
-Why would you use a template language such as PTML?
-
-A typical small CGI project has lots of HTML tags embedded in the PERL code.
-You can use a CGI module (CGI.pm or similar) to avoid embedding the actual
-tagging text in your program, but the structure and layout of the HTML is
-still embedded in your code.  This can be a problem both during development
-and later maintenance.
-
-It's possible to solve this problem.  A fairly standard techique these days
-is to build a document template and merge it with the data to generate the
-final document.  In this manner the visual elements of the CGI application
-are separated from the logic of the application.
-
-There are various facilities and utilities to do this.  Some PERL modules
-are available on CPAN, and facilities which are more
-platform-general/capability-specific, such as server side includes or
-`active server pages', are available by other means. However the techniques
-I have used and seen have various implementation and usage details that I
-didn't like.
-
-
-What do I use PTML/Ptml.pm for?
-
-As you may guess I use PTML in CGI utilities, but PTML is a more general
-purpose tool than that.  One of many examples: I use it to generate my bills
-in runoff by merging runoff templates with my billing data.
-
-
-Why would you use Ptml.pm?
-
-The following were the requirements I had as I developed Ptml.pm.  They make
-Ptml somwhat different from other template facilities that I have used.
-
-One facility of the Ptml module that is not really a requirement but worth
-mentioning is the SET VERIFY debugging mode (reminiscent of VAX/VMS $ SET
-VERIFY ) in which the lines of the template are displayed as they are read
-and the expansion phases of macros are displayed.  This makes it reasonably
-easy to prepare and debug complex templates.
-
-
-PTML REQUIREMENTS
+PTML is _not_ an extension to HTML.  In my experience it is difficult to
+prepare HTML templates using a template language that is an extension to
+HTML because a standard browser "hides" the template logic.  In contrast, an
+unmerged PTML file viewed with a standard browser typically gives a good
+representation of what the final merged HTML document will look like.
 
 Ptml is small and self contained, and requires no setups or installations
-within PERL or the computers operating environment.
+within Perl or the computers operating environment.  Simply copy the Ptml.pm
+file to a suitable directory and it's ready to go.  
 
-Ptml is not just for HTML generated for CGI.  It is usable with other
-document languages (e.g. plain text, runoff, etc.), and for tasks other than
-CGI.
+Complex templates can be debugged with the set_verify() function, which
+prints every line of a template as it is merged along with macro expansion
+phases.
 
 Ptml can gather all visual elements into a single file which is separate
-from the code BUT the visual elements are not _isolated_ from the code - I
-trust the creator of the Ptml file, and they automatically have full access
-to both PERL and the PERL variables of the application.
+from the code BUT the visual elements are not _isolated_ from the code. Ptml
+trusts the creator of the Ptml file, and they automatically have full access
+to both Perl and the Perl variables of the application.
 
 The above paragraph talks about "a single file" but the setup of Ptml is
 more flexible than this.  More than one template file can be used if desired
 (which is useful in a larger project), or the visual template can be
-incorporated right into the PERL source code itself (useful for very small
+incorporated right into the Perl source code itself (useful for very small
 projects).
 
-You may notice and wonder why PTML is NOT an extension of HTML.  There is a
-reason for this.  (More than one reason in fact though I only mention one
-reason here.)  Template languages which are extensions to HTML have, at least
-for me, a serious drawback - a regular browser or HTML editor cannot be used
-to format the template since much of the template is hidden from view due to
-the unrecognized tags.
 
-In contrast, typically much or all of the template logic of the PTML file is
-clearly visible when the template is viewed with an HTML browser - and yet
-final formatting of the HTML is also largly preserved.  For example PERL
-variables to be embedded are displayed in place of their final values so the
-look and feel of the final image can be seen before the programming logic is
-available to generate the final merged document.  In fact a standard HTML
-editor can often be used to create the template, including all the PTML
-code, with only minor touchups required later in a text editor.
+Installing Ptml.
+
+Copy Ptml.pm into a suitable directory.
+
+For system wide installation I suggest the Text/Template directory (which
+you must probably create).
+
+In this case Ptml will be accessed like this
+
+   use Text::Template::Ptml;
+
+Ptml can be installed on a project by project basis instead if you wish.  If
+Ptml.pm is stored in the same directory as the rest of your Perl application
+then you would access it with code like
+
+   use Ptml;
+
+If it were installed in a subdirectory such as Utils it would be accessed
+with code like
+
+   use Utils::Ptml;
 
 
-PTML - some details about the merge process
+Examples of merging
 
    See `example.ptml' for examples of all the PTML features, especially the
    more complex ones.
 
-A PTML template file is read line by line.
+   The doPtml utility can be used to examine the examples template, or other
+   files if desired.
 
-PTML tags are rather like runoff tags.  Each recognized keyword starts with
-a period.  e.g.  .FOREACH, or .IF
-
-PTML tags can be indented for readability, and an HTML <BR> tag can be added
-at the start of a each line to improve readability when using an HTML browser.
-
-   e.g.    <BR>.FOREACH $i (@ListOfNumbers)
-           <BR>    .FOREACH $j ($SomeDetails[$i])
-
-Each PTML keyword line is a `command line' in the template and does not
-appear in the final output.  All other lines _do_ appear in the final output
-- I refer to these lines as the `text' of the template.  The text of the
-template may be modified before being displayed via `macros', as explained
-next.
-
-The text of the template can contain variables to be embedded.  I refer to
-these as `macros' for some reason.  Each macro is bracketed by {+ and +}.
-The simplest and most common type of macro is a PERL variable that equates
-to a string.  However each macro is actually a tiny perl program that
-equates to the value to display.  A macro can contain any amount of PERL
-code as long as it will fit on a single line of the template.  If I need
-more PERL than this in a macro then I assume I'm doing something wrong, and
-put the code into a PERL function separate from the template.  In fact this
-is exactly how the provided macros came about.  They started life as simple
-snippets of PERL code embedded in templates, and became much more useful to
-me when I moved them into a separate PERL module to be `require'd as
-required.
-
-   e.g. template text containing a PERL variable and a PERL sub as macros
-
-       The value of $MyValue is {+$MyValue+}.
-       The first non-blank in the list is {+FIRSTOF(@SomeList)+}.
-
-   (I selected {+ and +} for brackets because they appear very rarely in
-   text, and would never normally need to be used in PERL.)
-
-PMTL can be used to format complex data such as recursive data structures
-through the use of formatting subroutines, (and possibly other techniques).
-See `example.ptml' for semi-practical examples.
-
-   e.g. a template that defines and calls a trivial formatting subroutine
-
-       .SUBROUTINE SayHelloTo $someone
-       Hi there {+someone+}.
-       .END_SUBROUTINE
-       .CALL SayHelloTo "Fred"
-       .CALL SayHelloTo "Sue and John"
-
-Expressions used in PTML command statements (i.e. .IF, .FOREACH, .EVAL, and
-etc.) are passed directly to PERL.  Therefore the logic and syntax for these
-expressions are the same as that required in normal PERL code, except
-possibly for any final semi-colon.
-
-One last facility to mention is the .SECTION tag.  Normally a project will
-be able to use a single template even when a variety of screens are to be
-displayed.  When the PERL application wants to print the merged template it
-can specify by name which sections are to be included.  Template lines not
-in any section are always displayed. A section can have multiple names so as
-to display as part of several sections.
-
-
-USING Ptml.pm - the PERL module which formats the PTML file
-
-Ptml.pm provides three main functions, one internal function which you may
-wish to call, and several debug functions.
-
-Three main routines:
-
-   Ptml::Print( filename [,@section_names(s)] )
-       
-       Merge a template file called `filename', and print the results
-       to standard output.
-       
-   Ptml::PrintMe([@section_names(s)] )
-
-       Merge the __DATA__ section of the PERL file to standard output.
-
-   Ptml::Merge(template_filehandle, output_filehandle, [@section_names(s)] )
-
-       Merge an already open template onto an already open output file. E.g.
-       to format an arbitrary mail message and pipe it into sendmail open
-       the template file (as a file) and open sendmail as a pipe, and then
-       merge thetemplate handle into the sendmail pipe handle.
-
-One internal routine that might be useful:
-
-   Ptml::scanthruPtml(INFILE,OUTFILE,position)
-
-       Scan through the template which is open using file handle INFILE,
-	   starting at file offset `position', and display the output on the
-	   file open using file handle OUTFILE.  A sub which calls this sub may
-	   need to be added to Ptml.pm so as to access the $sections{} array.
-
-Three debug routines:
-      
-   Ptml::set_verify()
-   Ptml::set_noverify()
-   Ptml::are_verifying()
-
-       Template debug functions.  set_verify() turns on template debugging,
-       set_noverify() turns off template debugging, and are_verifying()
-       tests current template debugging state.
-
-Ptml.pm is `require'd into your perl program.  It becomes part of what ever
-package you are using.  This is in contrast to most normal PERL modules, and
-means that Ptml.pm variables can (in theory) collide with your variables. In
-practise Ptml.pm uses `my' variables for everything but file handles and sub
-names which are kept in the Ptml:: package, so this is not really a problem.
-This is not to say that PTML template files cannot bash the variables in
-your code - they can - but as mentioned in the requirements above this is a
-design feature of PTML. I wanted extremely close integration between the
-template and the perl module providing the data. If this is not what you
-want then then you can explicitly require the ptml functions into some
-package other than your main PERL code (or modify Ptml.pm!).
-
-There are two approaches to tieing the PERL code and data of your
-application into the template.  In the first technique, your main PERL
-program defines all the data and macro functions and then merges the
-template.  In the second technique, the template itself uses .EVAL to
-`require' the perl code that provides the data and macros.  In this case the
-main PERL code can be a generic driver like the doPtml module described
-below.
-
-These two techniques can of course be combined.  I find it makes sense for
-the main PERL code to build application specific data structures and macro
-routines before merging the template, and for the template to `require' any
-general purpose macro functions it needs for formatting the data.
-
-A set of useful `macros' is provided in the PtmlMisc.pl file.  These are
-totally optional.  They are `require'd into your code just like the Ptml.pm
-module.  There is absolutely nothing unusual about the macro functions. Each
-function simply returns a string as its return value.  The functions can be
-invoked by name within the PTML macros once the file has been `require'd.
-
-   e.g.    # technique one
-           require Ptml;
-           require 'PtmlMisc.pl';
-           Ptml::PrintMe();
-           __DATA__
-           This is the text of the document.  Lets embed the TodaysDate()
-           macro.  ==> {+TodaysDate+} <==
-
-   e.g.    # technique two
-           require Ptml;
-           Ptml::PrintMe();
-           __DATA__
-           .EVAL require 'PtmlMisc.pl';
-           This is the text of the document.  Lets embed the TodaysDate()
-           macro.  ==> {+TodaysDate+} <==
-
-A complete set of examples is given in the `example.ptml' file.  They
-illustrate the use of the PTML lanaguage features described briefly below.
-They also contain examples of the PtmlMisc.pl macro functions. THE EXAMPLE
-FILE IS OVERLY COMPLICATED!  I want it to illustrate everything for
-completeness - my `real' templates have all been much simpler than the
-example file.
-
-
-ALMOST FINALLY:
-
-The file `doPtml' is a simple program that generates a document from any
-PTML template file.  It's useful for testing PTML language features, and can
-be used to merge the example templates.  It accepts -v as an option to turn
-on the SET VERIFY mode.
-
-   e.g.    doPtml example.ptml
-           doPtml -v your-template.ptml
-
-
-PTML - LANGUAGE ELEMENTS, and PtmlMisc macros.
-
-       .SECTION name [name ...]
-       .END_SECTION
-
-       .SUBROUTINE SubroutineName  [arg1 , arg2 , ...]
-       .EXIT_SUBROUTINE
-       .END_SUBROUTINE
-       .CALL SubroutineName parametre_expr
-
-       .IF expr
-       .ELSIF expr
-       .ELSE
-       .END_IF
-
-       .EMBEDDING
-       .END_EMBEDDING
-
-       .EDIT_LINES [keyword ...]
-
-           keywords: 
-
-                   TRIM - remove any white space from the beginning of each
-                   line. If the line begins with | then remove that
-                   character as well. This is useful to allow indenting of
-                   the text in a template to show the logic of the template
-                   even though the final document is not to have the
-                   indenting.
-
-                   JOIN - remove the trailing LF from each template line
-                   before it is displayed, (and before macros on that line
-                   are expanded).  This `joins' the output lines into a
-                   single line. The input is still read one line at a time.
-
-                   JOINSOME - Simlar to JOIN, but only applied to lines with
-                   a \ at the end.  
-                   
-       .END_EDIT_LINES 
-
-       .EVAL expr
-   
-       .INCLUDE filename
-           e.g. .INCLUDE StandardHeader.ptml
-
-       .FOREACH expr
-           e.g. .FOREACH $i (@SomeValues)
-       .FOR expr
-           e.g. .FOR ($i=0;$i<4; $i++)
-       .WHILE expr
-           e.g. .WHILE ($i<4)
-       .END_LOOP 
-
-
-
-PtmlMisc.pl macros
-
-       TodaysDate      - todays date
-           e.g.  Today is {+TodaysDate()+}
-
-       E(one_value)    - CGI encode of a value
-           e.g.  HTML_FORM_VARIABLE=E($PERL_Variable)
-
-       ONCOUNT(n, nth-time-string [, other-times-string])
-                       - insert text every nth time through a loop
-           e.g.  <TABLE>
-                 <TR>
-                 .FOREACH $cell (@list)
-                   <TD>$cell
-                   </TD>
-                   {+ONCOUNT(4,"</TR><TR>")+}
-                 .END_LOOP
-
-       IF(expression_result, OnTrueText [, OnFalseText])
-                       - insert one piece of text or some other text
-           e.g.  {+IF($i==4,'$i is 4','$i is not 4')+}
-
-       FIRSTOF(string1, string2, ..etc..)
-                       - insert first nonblank string from a list
-           e.g.  {+FIRSTOF(@SomeNames)+}
-
-
-SECURITY NOTE:
-
-The PTML file is as great a security risk as the PERL code which merges it.
-While I do not believe that user data beig merged _into_ a template poses an
-_inherent_ security risk, it is certainly possible to write templates where
-that would be the case.  (Examples shown below.)
-
-ONE RULE IS ABSOLUTE - do not allow any untrusted data to be used as the
-_source_ of the _template_.
-
-Data is merged using evals, but the eval's actually act upon the literal
-text of the PERL variable names that your program uses as `macros', not on
-the data contained within the macros.
-
-The following template snippet shows some dos and don'ts.  You can run this
-snippet using `doPtml' if you wish by extracting the lines into a file.
-
--- Template snippet start --
-
-   Lets define two variables with potentially dangerous contents, just as if
-   a user was trying to weasel some nastiness into your template.  These
-   first `.EVAL's are simply for illustration.  The contents of the
-   variables would actually have come from a user, perhaps as an entry in an
-   HTML form.
-
-   .EVAL $ls_command1='`ls -l >> ls_output1`'
-   .EVAL $ls_command2='`ls -l >> ls_output2`'
-
-   Note the evaluation quotes embedded in the strings.  Also note that
-   neither of the above .EVALS cause the commands to run because the string
-   uses ' quotes.
-
-   Now lets embed the value of the string in the template output.
-
-   $ls_command1 is the string {+$ls_command1+}. After this template is
-   merged you should look for the file `ls_output1'.  However you won't find
-   it. Embedding the string in this template does not cause the command to
-   run, even though the string contained `eval' quotes.
-
-   I wouldn't normally want to .EVAL any user input, but lets show that its
-   not inherently unsafe to do so!
-   
-   .EVAL $ls_command1
-   
-   The ls command still didn't run.  The PTML EVAL is still acting on the
-   variable itself, not on its contents!
-
-   WHEREAS the following two template lines ARE DANGEROUS.  Note the
-   EXPLICIT DOUBLE EVALS.
-
-       This embedding is dangerous - ouch! {+eval $ls_command2+}
-       The following .EVAL is dangerous
-       .EVAL eval $ls_command2
-
-   Afterwards you will find a file has been created - ls_output2, which
-   indicates that the second ls comand, used in the double evals, ran.
-
--- Template snippet end --
-
-Counter examples are surely welcome.
-
-
-BUGS
-
-A loop should always iterate at least once.  If not then the body of the
-loop gets merged once anyway but no loop variables are set.  You will know
-this is the bug if you see an .END_LOOP printed for no obvious reason.
-
-There are several workarounds.  I normally structure my templates so that I
-never try to format empty loops.  In fact I didn't even notice this bug for
-almost a year because all my projects had checked for empty lists and used
-SECTIONs to display nice messages explaining any lack of data.
-
-An alternative work around is to wrap the loop in an .IF .END_IF block.
-E.g.
-   .IF @user == 0
-       <H2>There are no users to list!</H2>
-   .ELSE
-       <TABLE>
-       .FOREACH $user (@users)
-               <TR><TD>{+$user+}</TD><TD>is a user.</TD></TR>
-       .END_LOOP
-       </TABLE>
-   .END_IF
-
-The third alternative is to ignore the problem.  Nothing much goes wrong
-with the rest of the formatting, it's just that the output might be slightly
-confusing when one non-existent item is formatted without data. In a quick
-and dirty project that might be satisfactory.
-
-This file Copyright (C) 1999 Malcolm Dew-Jones.

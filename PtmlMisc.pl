@@ -10,15 +10,12 @@ sub TodaysDate
 sub E #($one_value)  encode one value into cgi format
 {  my ($encoded) = @_;
 
-   print "\n    E([$encoded])\n" if are_verifying();
-
    # spaces to +'s
    $encoded =~ tr/ /+/;    
 
    # everything non-alpha-numeric into a hex encoded format
    $encoded =~ s/([^a-z+A-Z0-9])/"%".unpack("H",$1).unpack("h",$1)/ge;
 
-##   print "[$encoded]\n" if are_verifying();
    return $encoded;
 }
 
@@ -31,8 +28,6 @@ sub ONCOUNT #(number,string to show every nth time, string for other times)
 {  my ($n,$oncount, $offcount) = @_;
 
    $ONCOUNT{tell()}{pos()}++;
-   print "\n    ONCOUNT([$n],[$incount],$offcount])\n    counter is ",
-         $ONCOUNT{tell()}{pos()},"\n" if are_verifying();
    
    if ( $ONCOUNT{tell()}{pos()} == $n )
    {   $ONCOUNT{tell()}{pos()} = 0;
@@ -47,14 +42,13 @@ sub ONCOUNT #(number,string to show every nth time, string for other times)
 
 sub IF #(expression_result,OnTrueText,OnFalseText)
 {  my ($YN,$ontrue, $onfalse) = @_;
-   print "\n    IF([$YN],[$ontrue],[$onfalse])\n" if are_verifying();
    return $ontrue if $YN;
    return $onfalse;
 }
 
 # this 'Macro' returns the first non blank value
 sub FIRSTOF #(string1,string2,etc..)
-{  print( "\n    FIRSTOF([", join('],[',@_) ,"])\n") if are_verifying();
+{
    foreach (@_) { return $_ if "$_" ne ""; }
    return "";
 }

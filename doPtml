@@ -11,11 +11,20 @@ die "
                                to display. space delimited list 
 " if @ARGV < 1;                             
 
-require Ptml;
+# we don't know where Ptml is installed, so try both
+# use Ptml qw{PtmlPrint set_verify};
+# use Text::Template::Ptml qw{PtmlPrint set_verify};
+
+BEGIN{ 
+   eval "require Ptml";  
+   eval "require Text::Template::Ptml";
+   import Text::Template::Ptml qw{PtmlPrint set_verify};
+}
+
 
 if ($ARGV[0] =~ m/^-v/oi)
 {  shift;
-   Ptml::set_verify();
+   set_verify();
 }
 
-Ptml::Print( shift , \@ARGV);
+PtmlPrint( shift , \@ARGV);

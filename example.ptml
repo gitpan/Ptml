@@ -1,7 +1,8 @@
 This file Copyright (C) 1999 Malcolm Dew-Jones.
 
 This is the PTML example file.  It illustrates each of the various PTML
-merge language features.  It can be viewed with the doPtml script.  
+merge language features.  It can be viewed with the doPtml script to see
+the merge results of each feature.
 
    e.g. doPtml example.ptml  all
         doPtml example.ptml  macros
@@ -25,6 +26,10 @@ More than one section can be viewed at a time.
 
    e.g. doPtml example.ptml  subroutine for eval
 
+The results of set verify can also be examined via doPtml, as shown here
+
+   e.g. doPtml -v example.ptml | more
+
 The file as a whole illustrates the use of the .SECTION keyword.  Each
 section is named for one language feature, which it also illustrates.  Each
 section can be chosen by name from the command line of doPtml.  More than
@@ -32,10 +37,16 @@ one section can be chosen at a time, all the sections can be chosen with the
 word `all', and the macros can be selected enmass with `macros'.  
 
 
-The PTML file for a project will expect various project specific PERL data
-structures and macros to magicly exist.  In my projects the main PERL code
-normally prepares the data and macros ahead of time, but it's also feasible
-for the PTML file to use EVAL to suck in the required PERL code and data.
+The PTML file for a project will expect various Perl data structures and
+macros to magicly exist.  There are two places where they can be defined.
+1-In your main Perl script before the merge is started, or 2-by eval'ing the
+necessary Perl code from within your template.  I think it best to generate
+all the application specific data within the main script before the template
+is merged.  However I think it makes sense for the template itself to suck
+in any formatting macros that are not specific to the application.
+
+In this template of examples we will suck in all our data using .EVAL's
+because that makes it work with doPtml.
 
 .EVAL require 'PtmlMisc.pl';
 .EVAL require 'example.data';
@@ -46,8 +57,8 @@ This section illustrates the definition and call of a subroutine.
 --------------------------------------------------------------
 Four examples to show the syntax of explicit and implicit parametres.
 
-First of all we will define the subroutines, starting examples of single and
-multiple parametres.
+First of all we will define the subroutines, starting with examples of 
+single and multiple parametres.
 
 .SUBROUTINE TestSub1 $param1
    The single parametre in TestSub1 was: {+$param1+}.
@@ -57,7 +68,7 @@ multiple parametres.
    The two parametres from TestSub2 are {+$param1+}, and {+$param2+}.
 .END_SUBROUTINE
 
-Then define a subroutine that uses recursion to format a list of lists.
+Then we define a subroutine that uses recursion to format a list of lists.
 (It also illustrates .IF and .FOREACH.)
 
 .SUBROUTINE ListofLists $indent,$LI
@@ -91,7 +102,7 @@ Now we call the second subroutine, with the same parametres...
 And now we call the list of lists subroutine
    .CALL ListofLists "",\@SampleListOfLists
 
-And the argv example (which also shows accessing PERL data).
+And the argv example (which also shows accessing Perl data).
    .CALL UseArgv (keys %ENV)
 
 --------------------------------------------------------------
@@ -217,7 +228,7 @@ Set $n to 6
 .EVAL $n=6
 n is {+$n+}
 (See also near line 40 where .EVAL is used to require some 
- perl modules.)
+ Perl modules.)
 --------------------------------------------------------------
 End of .EVAL examples
 --------------------------------------------------------------
@@ -252,7 +263,7 @@ Thus ending the include example.
 .SECTION todaysdate E oncount firstof if_macro all macros 
 --------------------------------------------------------------
 These sections illustrate the use some of the PtmlMisc macros.
-Note: The macro names are case sensitive, being PERL code.
+Note: The macro names are case sensitive, being Perl code.
 --------------------------------------------------------------
 .SECTION todaysdate   all  macros 
 ------------------
