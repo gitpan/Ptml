@@ -1,0 +1,22 @@
+#!/perl
+
+=head1
+
+this PERL routine defines various data structures for use by the PTML
+examples.  In a real application the main PERL module would create useful 
+data structures to be merged into the template.  In this example we simply
+define a few examples structures to make the examples work.
+
+=cut
+
+@SampleList=(One,Word,At,A,Time);
+@SampleNames=(Joe,Fred,Sally,Sue);
+
+@SampleListOfLists=("The first item","The second item",
+                   ["item3.1","item3.2", ["thing3.3.1","and thing 3.3.2"] ],
+                   "Last item (number four)" );
+
+chop($ourDir = `pwd`);
+
+# return TRUE to our caller
+1;

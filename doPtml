@@ -1,0 +1,21 @@
+#!/usr/bin/perl
+
+die "
+   This is a simple test driver for Ptml.pm.  It displays a 
+   Ptml document with no additional logic.
+
+   Usage: doPtml [-v] template-file-name [section names(s)]
+   Where: -v                 : turn on document debug mode
+          template-file-name : your template file
+          sections name(s)   : select which `.SECTION name's
+                               to display. space delimited list 
+" if @ARGV < 1;                             
+
+require Ptml;
+
+if ($ARGV[0] =~ m/^-v/oi)
+{  shift;
+   Ptml::set_verify();
+}
+
+Ptml::Print( shift , \@ARGV);

@@ -1,0 +1,304 @@
+This file Copyright (C) 1999 Malcolm Dew-Jones.
+
+This is the PTML example file.  It illustrates each of the various PTML
+merge language features.  It can be viewed with the doPtml script.  
+
+   e.g. doPtml example.ptml  all
+        doPtml example.ptml  macros
+        
+        doPtml example.ptml  subroutine   
+        doPtml example.ptml  for          
+        doPtml example.ptml  foreach      
+        doPtml example.ptml  while        
+        doPtml example.ptml  if           
+        doPtml example.ptml  embedding    
+        doPtml example.ptml  edit_lines   
+        doPtml example.ptml  eval         
+        doPtml example.ptml  include 
+        doPtml example.ptml  todaysdate   
+        doPtml example.ptml  E            
+        doPtml example.ptml  oncount      
+        doPtml example.ptml  firstof      
+        doPtml example.ptml  if_macro        
+
+More than one section can be viewed at a time.
+
+   e.g. doPtml example.ptml  subroutine for eval
+
+The file as a whole illustrates the use of the .SECTION keyword.  Each
+section is named for one language feature, which it also illustrates.  Each
+section can be chosen by name from the command line of doPtml.  More than
+one section can be chosen at a time, all the sections can be chosen with the
+word `all', and the macros can be selected enmass with `macros'.  
+
+
+The PTML file for a project will expect various project specific PERL data
+structures and macros to magicly exist.  In my projects the main PERL code
+normally prepares the data and macros ahead of time, but it's also feasible
+for the PTML file to use EVAL to suck in the required PERL code and data.
+
+.EVAL require 'PtmlMisc.pl';
+.EVAL require 'example.data';
+
+.SECTION subroutine all
+--------------------------------------------------------------
+This section illustrates the definition and call of a subroutine.
+--------------------------------------------------------------
+Four examples to show the syntax of explicit and implicit parametres.
+
+First of all we will define the subroutines, starting examples of single and
+multiple parametres.
+
+.SUBROUTINE TestSub1 $param1
+   The single parametre in TestSub1 was: {+$param1+}.
+.END_SUBROUTINE
+
+.SUBROUTINE TestSub2 $param1,$param2
+   The two parametres from TestSub2 are {+$param1+}, and {+$param2+}.
+.END_SUBROUTINE
+
+Then define a subroutine that uses recursion to format a list of lists.
+(It also illustrates .IF and .FOREACH.)
+
+.SUBROUTINE ListofLists $indent,$LI
+   .IF ref($LI) ne "ARRAY"
+{+$indent+}{+$LI+}
+   .ELSE
+       .FOREACH $li (@{$LI})
+           .CALL ListofLists "$indent    ",$li
+       .END_LOOP
+   .END_IF
+.END_SUBROUTINE
+
+Finally we define a subroutine that has no named parametres.
+It illustrates the @argv array.
+
+.SUBROUTINE UseArgv 
+   In UseArgv.  The number of arguments was {+$#argv+}.  The first
+   three of them were {+$argv[0]+}, {+$argv[1]+}, and {+$argv[2]+}.
+.END_SUBROUTINE
+
+Now we call the first subroutine, several times...
+   .CALL TestSub1 '"Hi There"', 'Bye now'
+   .CALL TestSub1 q{This is a longer parametre}
+   .CALL TestSub1 $ENV{"MAIL"}
+   
+Now we call the second subroutine, with the same parametres...
+   .CALL TestSub2 '"Hi There"', 'Bye now'
+   .CALL TestSub2 q{This is a longer parametre}
+   .CALL TestSub2 $ENV{"MAIL"}
+
+And now we call the list of lists subroutine
+   .CALL ListofLists "",\@SampleListOfLists
+
+And the argv example (which also shows accessing PERL data).
+   .CALL UseArgv (keys %ENV)
+
+--------------------------------------------------------------
+And Thus ends the subroutine examples.
+--------------------------------------------------------------
+
+.SECTION for          all
+--------------------------------------------------------------
+Example of FOR loops (nested no less!)
+--------------------------------------------------------------
+.FOR ($i=1;$i<3;$i++)
+   .FOR ($j='a';$j lt 'h';$j++)
+   i.j = {+$i+}.{+$j+}
+   .END_LOOP
+.END_LOOP
+--------------------------------------------------------------
+End of example of FOR loops
+--------------------------------------------------------------
+
+.SECTION foreach      all
+--------------------------------------------------------------
+Example of FOREACH loop
+--------------------------------------------------------------
+.FOREACH $name (@SampleNames)  
+   $name is {+$name+}
+.END_LOOP
+--------------------------------------------------------------
+End of example of FOREACH loop
+--------------------------------------------------------------
+
+.SECTION while        all
+--------------------------------------------------------------
+This section illustrates the while loop.
+We shall print out the contents of the %ENV hash.
+--------------------------------------------------------------
+.WHILE (($k,$v) = each %ENV)
+   [{+$k+}]	=> [{+$v+}]
+.END_LOOP
+--------------------------------------------------------------
+End of while loop example.
+--------------------------------------------------------------
+
+.SECTION if           all
+--------------------------------------------------------------
+This section illustrates IF ELSE ELSIF END_IF (It also uses FOREACH)
+--------------------------------------------------------------
+.FOREACH $i (1..6)
+.IF $i==1
+   {+$i+}: This is the first time through the .FOREACH $i (1..6) loop
+.ELSIF $i==2
+   {+$i+}: And this is the second time through the loop.
+.ELSIF $i==4
+   {+$i+}: now its the fourth time through
+.ELSE
+   {+$i+}: And this is not the first, second, or fourth time through.
+.END_IF
+.END_LOOP
+--------------------------------------------------------------
+End of IF based example
+--------------------------------------------------------------
+
+.SECTION embedding    all
+--------------------------------------------------------------
+Embedding of macros is ON by default.  This example temporarily
+turns OFF the use of macros.
+--------------------------------------------------------------
+.END_EMBEDDING
+
+This line has the macro {+TodaysDate()+}, but it won't be embedded 
+due to the .END_EMBEDDING command.
+
+.EMBEDDING
+Now that embedding is turned on again, the same macro will look 
+like this: {+TodaysDate()+}
+--------------------------------------------------------------
+End of EMBEDDING example
+--------------------------------------------------------------
+
+.SECTION edit_lines   all
+--------------------------------------------------------------
+This section shows the use of EDIT_LINES to modify the input
+lines before any macros are expanded.
+--------------------------------------------------------------
+First show TRIM.
+
+.EDIT_LINES    TRIM
+       This line will not be indented when displayed
+       |   but this further indent will be kept.
+
+Then add JOIN.  JOIN removes the trailing LF from the input.
+You will need one blank line _after_ a JOIN to start a new line.
+.EDIT_LINES    JOIN
+   At this stage TRIM is still active, 
+   and because of JOIN these lines will also 
+   be joined into one.
+.END_EDIT_LINES
+
+
+Now show JOIN by itself.
+.EDIT_LINES    JOIN 
+   Now only the JOIN is active, so 
+   they will be joined but with white space.
+.END_EDIT_LINES
+
+
+And finally JOINSOME by itself.
+.EDIT_LINES    JOINSOME
+Some of these lines \
+will be on the same line.
+And some of the lines \
+will not be on the same line.
+.END_EDIT_LINES   
+
+--------------------------------------------------------------
+End of EDIT_LINES examples
+--------------------------------------------------------------
+
+.SECTION eval         all
+--------------------------------------------------------------
+Some .EVAL examples
+--------------------------------------------------------------
+Set $n to 6
+.EVAL $n=6
+n is {+$n+}
+(See also near line 40 where .EVAL is used to require some 
+ perl modules.)
+--------------------------------------------------------------
+End of .EVAL examples
+--------------------------------------------------------------
+
+.SECTION include      all
+--------------------------------------------------------------
+This section illustrates the include of a file.
+Let's include the doPtml script since that ought to exist!
+--------------------------------------------------------------
+The $ourDir variable was already set to {+$ourDir+}
+
+.INCLUDE $ourDir/doPtml
+
+Note that the .INCLUDE'd file is _merged_.  If you simply wish 
+to display a standard bit of text without merging the contents
+then use .EVAL with a subroutine (that you write yourself).  You
+can also use system("cat $file") but you will have to worry about
+buffering then.  I wouldn't normally define a sub here in the 
+template, but you can if you wish!
+
+   ----------------------------
+   Non-merging include of file.
+   ----------------------------
+
+.EVAL sub ShowFile { my ($f)=@_; open(F,"<$f"); print while(<F>) ; close(F);}
+.EVAL ShowFile("$ourDir/doPtml")
+
+--------------------------------------------------------------
+Thus ending the include example.
+--------------------------------------------------------------
+
+.SECTION todaysdate E oncount firstof if_macro all macros 
+--------------------------------------------------------------
+These sections illustrate the use some of the PtmlMisc macros.
+Note: The macro names are case sensitive, being PERL code.
+--------------------------------------------------------------
+.SECTION todaysdate   all  macros 
+------------------
+Example use of TodaysDate()
+------------------
+Todays date is {+TodaysDate()+}.
+
+.SECTION E            all  macros 
+------------------
+Example use of E()
+------------------
+The CGI style encoding of "This & that are words!" is
+   {+E("This & that are words!")+}
+
+.SECTION oncount      all macros 
+------------------
+Example use of ONCOUNT()
+------------------
+Its hard to show the ONCOUNT macro without a loop!  Lets generate
+a fixed width HTML table from a flat list.  The table will have an
+end of row added after every third cell.
+
+<TABLE><TR>
+.FOREACH $i (1..10)
+   <TD>Loop counter $i is {+$i+}</TD> {+ONCOUNT(3,"</TR><TR>")+}
+.END_LOOP
+</TR>
+
+.SECTION firstof      all  macros 
+------------------
+Example use of FIRSTOF()
+------------------
+FIRSTOF("","","Third","fourth") should be Third, so lets try that.
+FIRSTOF("","","Third","fourth") ={+FIRSTOF("","","Third","fourth")+}
+
+.SECTION if_macro     all  macros 
+------------------
+Example use of IF() macro.
+------------------
+{+IF(1==1,"yes, 1==1","odd - 1 != 1 ?")+}
+{+IF(1==2,"very odd - 1==2 !","sure enough, 1 does not equal 2")+}
+
+
+.END_SECTION
+
+This is the end of the PTML example file.  It comes after an .END_SECTION
+keyword and is therefore not in any section, and will therefore always be
+displayed.
+
